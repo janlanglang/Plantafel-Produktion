@@ -5,7 +5,7 @@
   "description": "Read-only production timeline for APplus Quickview Plantafel_01",
   "scripts": {
     "test": "node --test tests\\production-board.test.cjs",
-    "check": "node --check erp-dashboard\\Plantafel_01\\dashboard\\Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js"
+    "check": "node --check erp-dashboard\\Plantafel_01\\query\\Plantafel_Core__Core__A1B3793C-0392-47FE-A85D-BBD77D7EB405.js && node --check erp-dashboard\\Plantafel_01\\query\\Plantafel_001__Plantafel_Produktion__ED56BE7D-CC7A-4D77-9DC6-615F646B2186.js && node --check erp-dashboard\\Plantafel_01\\dashboard\\Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js"
   },
   "dependencies": {
     "vis-timeline": "8.5.0"

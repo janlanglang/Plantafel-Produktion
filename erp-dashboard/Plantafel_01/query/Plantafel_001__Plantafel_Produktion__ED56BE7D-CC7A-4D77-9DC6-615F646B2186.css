@@ -1,0 +1,23 @@
+.production-board .pb-scheduled {
+    background: #d6e8ff;
+    border-color: #507dad;
+    color: #173c65;
+}
+
+.production-board .pb-working {
+    background: #d7eddf;
+    border-color: #41825b;
+    color: #164b2b;
+}
+
+.production-board .pb-delayed {
+    background: #ffe0dc;
+    border-color: #b7463c;
+    color: #7d2721;
+}
+
+.production-board .pb-simulation {
+    background: #eadff8;
+    border-color: #8965ae;
+    color: #573476;
+}

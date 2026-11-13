@@ -7,6 +7,7 @@
 
   The existing empty Plantafel_001 becomes a script-only JSON provider.
   Plantafel_Vis_850 is a reusable script-only library (no external CDN).
+  Plantafel_Core contains the shared runtime; Plantafel_001 owns its profile.
   JSPAGESCRIPT/CSSSTYLE remain editable through the existing ERP sync.
   SQL/options/library changes require this installer, not just file-save.
 
@@ -28,8 +29,12 @@ $base = 'https://applusdeploy.systec-lab.local/APplusdeploy'
 $dashboard = 'Plantafel_01'
 $provider = 'Plantafel_001'
 $library = 'Plantafel_Vis_850'
+$core = 'Plantafel_Core'
+$coreGuid = 'A1B3793C-0392-47FE-A85D-BBD77D7EB405'
 $dashboardGuid = 'BA8D0503-22C9-4409-A730-F079A57ACB53'
 $stem = Join-Path $root 'erp-dashboard\Plantafel_01\dashboard\Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53'
+$coreStem = Join-Path $root 'erp-dashboard\Plantafel_01\query\Plantafel_Core__Core__A1B3793C-0392-47FE-A85D-BBD77D7EB405'
+$providerStem = Join-Path $root 'erp-dashboard\Plantafel_01\query\Plantafel_001__Plantafel_Produktion__ED56BE7D-CC7A-4D77-9DC6-615F646B2186'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 function Escape-Xml([string] $Value) {
@@ -97,11 +102,21 @@ function Assert-Fields([string] $Table, [string] $Guid, [System.Collections.IDic
 }
 
 $dashRows = @(Invoke-ErpRead "SELECT * FROM QVDASHBOARD WHERE QVDASHBOARD='$dashboard' AND GUID='$dashboardGuid'")
-$queryRows = @(Invoke-ErpRead "SELECT *,CONVERT(nvarchar(max),OPTIONS) AS OPTIONS_TEXT FROM QVQUERY WHERE QVQUERY IN ('$provider','$library')")
+$queryRows = @(Invoke-ErpRead "SELECT *,CONVERT(nvarchar(max),OPTIONS) AS OPTIONS_TEXT FROM QVQUERY WHERE QVQUERY IN ('$provider','$library','$core')")
 $links = @(Invoke-ErpRead "SELECT * FROM QVDASHBOARDQUERY WHERE QVDASHBOARD='$dashboard'")
 if ($dashRows.Count -ne 1) { throw 'Expected linked dashboard was not found.' }
 $events = @($queryRows | Where-Object { $_.QVQUERY -eq $provider })
 if ($events.Count -ne 1) { throw 'Expected Plantafel_001 provider was not found.' }
+$coreRows = @($queryRows | Where-Object { $_.QVQUERY -eq $core })
+if ($coreRows.Count -ne 1 -or $coreRows[0].GUID -ne $coreGuid) {
+    throw 'Expected existing Plantafel_Core query was not found.'
+}
+if ($coreRows[0].JSPAGESCRIPT -and
+    $coreRows[0].DESCRIPTION -notlike 'Gemeinsame lesende Plantafel-Runtime*' -and
+    ([string] $coreRows[0].JSPAGESCRIPT).Replace("`r`n", "`n") -cne
+        [System.IO.File]::ReadAllText("$coreStem.js").Replace("`r`n", "`n")) {
+    throw 'Plantafel_Core contains unexpected code. Review it before replacing it.'
+}
 if ($events[0].STATEMENT.Trim() -notmatch '^(?i:select\s+1)$' -and
     $events[0].STATEMENT -notlike '*Lesender Quickview-Provider fuer Plantafel_01*' -and
     $events[0].DESCRIPTION -notlike 'Nur lesend: belegte Produktionsressourcen*') {
@@ -109,7 +124,7 @@ if ($events[0].STATEMENT.Trim() -notmatch '^(?i:select\s+1)$' -and
 }
 $otherUse = @(Invoke-ErpRead "SELECT QVDASHBOARD FROM QVDASHBOARDQUERY WHERE QVQUERY='$provider' AND QVDASHBOARD<>'$dashboard'")
 if ($otherUse.Count) { throw 'Plantafel_001 is used by another dashboard; refusing to change it.' }
-if ($links | Where-Object { $_.QVQUERY -notin @($provider, $library) }) {
+if ($links | Where-Object { $_.QVQUERY -notin @($provider, $library, $core) }) {
     throw 'Dashboard contains other elements; refusing to change its page hooks.'
 }
 
@@ -148,9 +163,23 @@ if ($libRows.Count -eq 1) {
 }
 Assert-Fields 'QVQUERY' $libraryGuid $libraryFields
 
+$coreFields = [ordered]@{
+    STATEMENT = [System.IO.File]::ReadAllText("$coreStem.sql")
+    JSPAGESCRIPT = [System.IO.File]::ReadAllText("$coreStem.js")
+    CSSSTYLE = [System.IO.File]::ReadAllText("$coreStem.css")
+    DESCRIPTION = 'Gemeinsame lesende Plantafel-Runtime fuer profilbasierte QV-Provider. Keine Produktionsfelder oder Schreibaktionen; vis-timeline 8.5.0 erforderlich. Core nur im fuehrenden Produktions-Workspace bearbeiten.'
+    SCRIPTONLY = '1'
+    VERSION = '20261113'
+    ANP_DIRECTSQL = '0'
+}
+Invoke-ErpWrite 'QVQUERY' $coreFields "GUID='$coreGuid'"
+Assert-Fields 'QVQUERY' $coreGuid $coreFields
+
 $providerGuid = $events[0].GUID
 $providerFields = [ordered]@{
-    STATEMENT = [System.IO.File]::ReadAllText((Join-Path $root 'erp-dashboard\Plantafel_01\query\Plantafel_001.sql'))
+    STATEMENT = [System.IO.File]::ReadAllText("$providerStem.sql")
+    JSPAGESCRIPT = [System.IO.File]::ReadAllText("$providerStem.js")
+    CSSSTYLE = [System.IO.File]::ReadAllText("$providerStem.css")
     OPTIONS = [System.IO.File]::ReadAllText((Join-Path $root 'erp-dashboard\Plantafel_01\query\Plantafel_001.options.xml'))
     DESCRIPTION = 'Nur lesend: belegte Produktionsressourcen, Status 2/3, explizit leerer DB-Mandant. Max. 93 Abfragetage / 10.000 Events; Auftragsnachladung mit ausserhalb=1 ohne Zeitfilter nur fuer einen BAUFTRAG. Werkstattauftrag = BAUFTRAG + POSITION. Keine Kapazitaetsberechnung.'
     SCRIPTONLY = '1'
@@ -168,18 +197,16 @@ if (([xml] $optionRows[0].OPTIONS).DocumentElement.OuterXml -cne ([xml] $options
     throw 'Provider options differ after installation.'
 }
 
-$dashFields = [ordered]@{
-    JSPAGESCRIPT = [System.IO.File]::ReadAllText("$stem.js")
-    CSSSTYLE = [System.IO.File]::ReadAllText("$stem.css")
-    ANP_VERSION = '20261113'
-}
-Invoke-ErpWrite 'QVDASHBOARD' $dashFields "GUID='$dashboardGuid'"
-Assert-Fields 'QVDASHBOARD' $dashboardGuid $dashFields
-foreach ($name in @($library, $provider)) {
+$orderedQueries = @($library, $core, $provider)
+foreach ($name in $orderedQueries) {
     $existing = @($links | Where-Object { $_.QVQUERY -eq $name })
     if ($existing.Count -gt 1) { throw "Duplicate dashboard link: $name" }
     $linkGuid = if ($existing.Count) { $existing[0].GUID } else { [guid]::NewGuid().ToString().ToUpperInvariant() }
-    $linkFields = [ordered]@{ QVDASHBOARD = $dashboard; QVQUERY = $name; ORDERPOSITION = $(if ($name -eq $library) { '1' } else { '2' }) }
+    $linkFields = [ordered]@{
+        QVDASHBOARD = $dashboard
+        QVQUERY = $name
+        ORDERPOSITION = [string] ([array]::IndexOf($orderedQueries, $name) + 1)
+    }
     if ($existing.Count) {
         Invoke-ErpWrite 'QVDASHBOARDQUERY' $linkFields "GUID='$linkGuid'"
     } else {
@@ -189,6 +216,14 @@ foreach ($name in @($library, $provider)) {
     Assert-Fields 'QVDASHBOARDQUERY' $linkGuid $linkFields
     Write-Output "Verified link: $name / $linkGuid"
 }
+$dashFields = [ordered]@{
+    JSPAGESCRIPT = [System.IO.File]::ReadAllText("$stem.js")
+    CSSSTYLE = [System.IO.File]::ReadAllText("$stem.css")
+    ANP_VERSION = '20261113'
+}
+Invoke-ErpWrite 'QVDASHBOARD' $dashFields "GUID='$dashboardGuid'"
+Assert-Fields 'QVDASHBOARD' $dashboardGuid $dashFields
 Write-Output "Verified provider: $provider / $providerGuid"
 Write-Output "Verified library: $library / $libraryGuid"
+Write-Output "Verified shared core: $core / $coreGuid"
 Write-Output "Installed: $base/Quickviews/Dashboard.aspx?name=$dashboard"

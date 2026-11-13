@@ -3,10 +3,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const file = path.join(__dirname, "..", "erp-dashboard", "Plantafel_01", "dashboard",
-    "Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js");
+const root = path.join(__dirname, "..", "erp-dashboard", "Plantafel_01");
 const context = { window: { addEventListener() {} }, URLSearchParams, Date, console };
-vm.runInNewContext(fs.readFileSync(file, "utf8"), context);
+[
+    path.join(root, "query", "Plantafel_Core__Core__A1B3793C-0392-47FE-A85D-BBD77D7EB405.js"),
+    path.join(root, "query", "Plantafel_001__Plantafel_Produktion__ED56BE7D-CC7A-4D77-9DC6-615F646B2186.js"),
+    path.join(root, "dashboard", "Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js")
+].forEach(file => vm.runInNewContext(fs.readFileSync(file, "utf8"), context));
 const board = context.window.ProductionBoard;
 
 function row(overrides = {}) {
@@ -199,9 +202,9 @@ test("maximum zoom snaps to exactly 93 calendar days instead of requesting an in
 
 test("resource tree hides whole cost centers, supports individual exceptions and new machine groups", () => {
     const filter = { defaultVisible: true, costs: new Map() };
-    const first = { id: "m:1", kost: "100", magr: "01" };
-    const second = { id: "m:2", kost: "100", magr: "02" };
-    const otherCost = { id: "m:3", kost: "200", magr: "01" };
+    const first = { id: "m:1", parentId: "100", code: "01" };
+    const second = { id: "m:2", parentId: "100", code: "02" };
+    const otherCost = { id: "m:3", parentId: "200", code: "01" };
     board.setCostVisibility(filter, "100", false);
     assert.equal(board.isResourceVisible(first, filter), false);
     assert.equal(board.isResourceVisible(second, filter), false);
@@ -209,7 +212,7 @@ test("resource tree hides whole cost centers, supports individual exceptions and
     board.setMachineVisibility(filter, first, true);
     assert.equal(board.isResourceVisible(first, filter), true);
     assert.equal(board.isResourceVisible(second, filter), false);
-    assert.equal(board.isResourceVisible({ id: "m:new", kost: "100", magr: "03" }, filter), false);
+    assert.equal(board.isResourceVisible({ id: "m:new", parentId: "100", code: "03" }, filter), false);
     board.setCostVisibility(filter, "100", true);
     assert.equal(board.isResourceVisible(second, filter), true);
     board.setMachineVisibility(filter, first, false);
@@ -219,7 +222,7 @@ test("resource tree hides whole cost centers, supports individual exceptions and
 
 test("hiding all resources also hides newly loaded cost centers until explicitly enabled", () => {
     const filter = { defaultVisible: false, costs: new Map() };
-    const group = { id: "m:new", kost: "new", magr: "01" };
+    const group = { id: "m:new", parentId: "new", code: "01" };
     assert.equal(board.isResourceVisible(group, filter), false);
     board.setMachineVisibility(filter, group, true);
     assert.equal(board.isResourceVisible(group, filter), true);
@@ -268,4 +271,40 @@ test("forward connections stay within their horizontal gap; same-row gaps stay s
     assert.equal(forward.d, "M200,25 C232,25 268,75 300,75");
     assert.equal(board.sequencePath(source, { left: 300, right: 340, top: 10, bottom: 40 }).d,
         "M200,25 L300,25");
+});
+
+test("the same core accepts an independent profile without production keys, progress or order relationships", () => {
+    const other = context.window.PlantafelCore({
+        id: "contract-board", query: "Contract_Data", title: "Andere Ressourcenplantafel",
+        parameters: [
+            { name: "von", label: "Von", type: "date" },
+            { name: "bis", label: "Bis (inklusiv)", type: "date" },
+            { name: "team", label: "Team", type: "text" }
+        ],
+        fields: [["TITLE", "Einsatz"]], colors: { SERVICE: ["contract-service", "Service"] },
+        requiredFields: ["TEAM", "EMPLOYEE"],
+        resource: value => ({ parentId: value.TEAM, parentLabel: value.TEAM,
+            code: value.EMPLOYEE, order: value.TEAM + value.EMPLOYEE }),
+        validateParameters() {}, validateRow() {},
+        formatField: (value, key) => String(value[key]),
+        itemTitle: value => value.TITLE, itemContent: value => value.TITLE
+    });
+    const params = other.resolveParameters("?param=von%3D20250201%26bis%3D20250301%26team%3DA%26bauftrag%3Dignored",
+        null, null, new Date(2026, 10, 13));
+    assert.equal(params.team, "A");
+    assert.equal(Object.hasOwn(params, "bauftrag"), false);
+    assert.doesNotThrow(() => other.validateParameters(params));
+    const values = [{
+        ROW_KIND: "event", EVENT_ID: "service:assignment:1", RESOURCE_ID: "person:1",
+        TITLE: "Einsatz", COLOR_TOKEN: "SERVICE", RESOURCE_LABEL: "Team A / Person 1",
+        START_DATE: "2025-02-01T08:00:00", END_DATE: "2025-02-01T10:00:00", TEAM: "A", EMPLOYEE: "1"
+    }];
+    const model = other.normalizeRows(values);
+    assert.equal(model.groups[0].parentId, "A");
+    assert.equal(model.groups[0].code, "1");
+    assert.equal(model.items[0].className, "contract-service");
+    assert.equal(other.getSequence(model.items, values[0], "anything").length, 0);
+    assert.throws(() => other.orderParameters(params, values[0], "anything"), /unterstuetzt keine/);
+    assert.throws(() => board.normalizeRows(values), /Pflichtspalten/);
+    assert.equal(board.normalizeRows([row()]).items[0].className, "pb-scheduled");
 });

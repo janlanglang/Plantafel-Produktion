@@ -51,7 +51,8 @@
   - Dashboard Plantafel_01, Provider Plantafel_001, Bibliothek
     Plantafel_Vis_850 (vis-timeline 8.5.0, lokal als Script-only-QV).
   - Die lauffaehige Einzelabfrage liegt separat unter
-    erp-dashboard\Plantafel_01\query\Plantafel_001.sql.
+    erp-dashboard\Plantafel_01\query\
+    Plantafel_001__Plantafel_Produktion__ED56BE7D-CC7A-4D77-9DC6-615F646B2186.sql.
     Der normale APplus-QV-SQL-Parser akzeptiert den DECLARE-/CTE-Block
     dieser Testvorlage nicht. Der Provider ist deshalb ein einzelnes
     SELECT mit abgeleiteten Tabellen; ANP_DIRECTSQL bleibt ausgeschaltet.
@@ -140,6 +141,26 @@
     Grenze exklusiv: Anzeige = bis minus ein Tag, Abfrage = Eingabe plus
     ein Kalendertag. Dadurch bleiben bestehende Links und DB-Ortszeitgrenzen
     kompatibel, auch bei Monats-/Jahreswechsel und Sommerzeit.
+  - Gemeinsame Codebasis: Script-only-QV Plantafel_Core enthaelt die
+    profilbasierte Runtime und das gemeinsame CSS. Plantafel_001 enthaelt
+    neben SQL das Produktionsprofil und dessen Farbpalette. Das Dashboard
+    besitzt nur noch den event_page_loaded-Aufruf. Einbindereihenfolge:
+    Plantafel_Vis_850 -> Plantafel_Core -> Plantafel_001 -> Dashboard-Hook.
+    Core benoetigt keine BAUFTRAG/POSITION/AG-, KOST/MAGR- oder Statusfelder.
+    Das Profil definiert Filterparameter, Pflichtspalten, Ressourcenmapping,
+    Formatierung und optional Zugehoerigkeit/Folgen/Nachladeparameter.
+    Normalisierter Lesekontrakt: ROW_KIND, EVENT_ID, RESOURCE_ID,
+    TITLE, COLOR_TOKEN, RESOURCE_LABEL, START_DATE, END_DATE plus Profilfelder.
+    Ein Ressourcenmapping liefert parentId, parentLabel, code und order.
+    Ohne related-Definition entfaellt die Zugehoerigkeitssektion.
+    Weiterhin lesbares JavaScript ueber QV-Sync, noch kein TypeScript-Build.
+  - Plantafel_02 erhaelt einen eigenen ERP-Sync-Ordner (Plugin 0.3.6 hat
+    genau eine Dashboard-Zuordnung pro Workspace-Ordner). Bei Multi-Root
+    verwenden Initialisierung/Laden den ersten Ordner; separates Fenster
+    ist eindeutig. Core wird nur im fuehrenden Produktions-Workspace editiert.
+    Ein Service-Dashboard bindet dieselbe Core-QV ein, nicht eine Codekopie.
+    Servicedaten und Serviceprofil werden separat angeschlossen; sie sind
+    durch die Core-Auslagerung allein noch nicht implementiert.
   - Folgepfeile verwenden kurze, glatte Kurven. Bei zeitlicher Ueberlappung
     werden einander zugewandte obere/untere Balkenkanten verbunden, statt
     ueber feste Haken ausserhalb der Balken zurueckzulaufen.
