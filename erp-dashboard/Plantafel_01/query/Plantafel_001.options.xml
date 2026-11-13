@@ -1,0 +1,10 @@
+<config>
+  <parameter>
+    <p name="von" escape="true" />
+    <p name="bis" escape="true" />
+    <p name="bauftrag" escape="true" />
+    <p name="position" escape="true" />
+    <p name="simulationen" escape="true">0</p>
+    <p name="ausserhalb" escape="true">0</p>
+  </parameter>
+</config>

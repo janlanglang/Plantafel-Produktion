@@ -1,0 +1,13 @@
+{
+  "name": "applus-production-board-readonly",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only production timeline for APplus Quickview Plantafel_01",
+  "scripts": {
+    "test": "node --test tests\\production-board.test.cjs",
+    "check": "node --check erp-dashboard\\Plantafel_01\\dashboard\\Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js"
+  },
+  "dependencies": {
+    "vis-timeline": "8.5.0"
+  }
+}

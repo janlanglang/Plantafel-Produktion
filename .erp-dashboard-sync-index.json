@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-11-13T07:39:02.405Z",
+  "contextType": "quickview",
+  "dashboardId": "Plantafel_01",
+  "entries": [
+    {
+      "relativePath": "erp-dashboard/Plantafel_01/dashboard/Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.js",
+      "table": "QVDASHBOARD",
+      "field": "JSPAGESCRIPT",
+      "versionField": "ANP_VERSION",
+      "guid": "BA8D0503-22C9-4409-A730-F079A57ACB53",
+      "recordName": "Plantafel_01 - Plantafel Produktion",
+      "type": "DASHBOARD",
+      "version": "20261113",
+      "contextType": "quickview"
+    },
+    {
+      "relativePath": "erp-dashboard/Plantafel_01/dashboard/Plantafel_01__Plantafel_Produktion__BA8D0503-22C9-4409-A730-F079A57ACB53.css",
+      "table": "QVDASHBOARD",
+      "field": "CSSSTYLE",
+      "versionField": "ANP_VERSION",
+      "guid": "BA8D0503-22C9-4409-A730-F079A57ACB53",
+      "recordName": "Plantafel_01 - Plantafel Produktion",
+      "type": "DASHBOARD",
+      "version": "20261113",
+      "contextType": "quickview"
+    },
+    {
+      "relativePath": "erp-dashboard/Plantafel_01/query/Plantafel_001.sql",
+      "table": "QVQUERY",
+      "field": "STATEMENT",
+      "versionField": "VERSION",
+      "guid": "ED56BE7D-CC7A-4D77-9DC6-615F646B2186",
+      "recordName": "Plantafel_001 - Plantafel",
+      "type": "QUERY",
+      "version": "20261113",
+      "contextType": "quickview"
+    }
+  ]
+}
