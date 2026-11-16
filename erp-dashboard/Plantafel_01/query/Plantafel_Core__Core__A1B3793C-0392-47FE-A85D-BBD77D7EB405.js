@@ -140,21 +140,55 @@ window.PlantafelCore = function createPlantafel(profile) {
     }
 
     function normalizeRows(rows) {
+        const withResources = profile.showEmptyResources || profile.includeResourceCatalog;
         if (!Array.isArray(rows)) throw new Error("QV-Antwort ist keine JSON-Zeilenliste.");
         const errorRow = rows.find(row => row && row.ROW_KIND === "error");
         if (errorRow) throw new Error("Query-Parameter: " + errorRow.ERROR_MESSAGE);
         if (rows.length === 1 && rows[0] && rows[0].ROW_KIND === "empty") {
-            return { items: [], groups: [] };
+            return { items: [], groups: [], teams: [], warnings: [], resourceRows: [] };
         }
-        if (rows.length > MAX_EVENTS) {
+        const eventCount = rows.filter(row => row && row.ROW_KIND === "event").length;
+        if (eventCount > MAX_EVENTS) {
             throw new Error("Mehr als 10.000 Eintraege. Bitte Zeitraum oder fachliche Filter eingrenzen.");
         }
         const ids = new Set();
         const groups = new Map();
+        const teams = new Map();
+        const warnings = [];
+        function addGroup(row) {
+            const group = { id: row.RESOURCE_ID, label: row.RESOURCE_LABEL, ...profile.resource(row) };
+            if (typeof group.parentId !== "string" || typeof group.parentLabel !== "string" ||
+                typeof group.code !== "string" || typeof group.order !== "string") {
+                throw new Error("Unvollstaendige Ressourcenhierarchie: " + group.id);
+            }
+            const previous = groups.get(group.id);
+            if (previous && previous.label !== group.label) {
+                throw new Error("Widerspruechliche Ressourcen-ID: " + group.id);
+            }
+            teams.set(group.parentId, group.parentLabel);
+            groups.set(group.id, group);
+        }
         // Query.aspx omits SQL NULL values from JSON, including optional tooltip fields.
         const required = ["EVENT_ID", "RESOURCE_ID", "TITLE", "COLOR_TOKEN",
             "RESOURCE_LABEL", "START_DATE", "END_DATE", ...profile.requiredFields];
-        const items = rows.map(row => {
+        const items = [];
+        rows.forEach(row => {
+            if (withResources && eventCount === 0 && row && row.ROW_KIND === "empty") return;
+            if (withResources && row && ["team", "resource"].includes(row.ROW_KIND)) {
+                if (row.ROW_KIND === "team") {
+                    if (typeof row.TEAM_CODE !== "string" || !row.TEAM_CODE) {
+                        throw new Error("Teamschluessel fehlt in der QV-Antwort.");
+                    }
+                    teams.set(row.TEAM_CODE, row.TEAM_NAME ?
+                        row.TEAM_CODE + " - " + row.TEAM_NAME : row.TEAM_CODE);
+                } else {
+                    if (!row.RESOURCE_ID || !row.RESOURCE_LABEL || !row.RESOURCE_CODE) {
+                        throw new Error("Ressourcenschluessel fehlt in der QV-Antwort.");
+                    }
+                    addGroup(row);
+                }
+                return;
+            }
             if (!row || typeof row !== "object" || row.ROW_KIND !== "event" ||
                 required.some(key => !Object.hasOwn(row, key))) {
                 throw new Error("QV-Pflichtspalten fehlen. Query-Konfiguration und Spaltenrechte pruefen.");
@@ -167,25 +201,25 @@ window.PlantafelCore = function createPlantafel(profile) {
             if (!Object.hasOwn(COLORS, row.COLOR_TOKEN)) {
                 throw new Error("Unbekannte Farbklassifikation: " + row.COLOR_TOKEN);
             }
-            const start = parseLocalDate(row.START_DATE);
-            const end = parseLocalDate(row.END_DATE);
-            if (end < start) throw new Error("Eintrag endet vor seinem Beginn: " + row.TITLE);
+            let start, end;
+            try {
+                start = parseLocalDate(row.START_DATE);
+                end = parseLocalDate(row.END_DATE);
+                if (end < start) throw new Error("Eintrag endet vor seinem Beginn: " + row.TITLE);
+            } catch (error) {
+                if (!profile.skipInvalidDates) throw error;
+                warnings.push({ id: row.EVENT_ID, title: row.TITLE, message: error.message });
+                return;
+            }
             profile.validateRow(row, helpers);
-            const group = { id: row.RESOURCE_ID, label: row.RESOURCE_LABEL, ...profile.resource(row) };
-            if (typeof group.parentId !== "string" || typeof group.parentLabel !== "string" ||
-                typeof group.code !== "string" || typeof group.order !== "string") {
-                throw new Error("Unvollstaendige Ressourcenhierarchie: " + group.id);
-            }
-            const previous = groups.get(group.id);
-            if (previous && previous.label !== group.label) {
-                throw new Error("Widerspruechliche Ressourcen-ID: " + group.id);
-            }
-            groups.set(group.id, group);
-            return { id: row.EVENT_ID, group: row.RESOURCE_ID, start, end,
+            addGroup(row);
+            items.push({ id: row.EVENT_ID, group: row.RESOURCE_ID, start, end,
                 type: end.getTime() === start.getTime() ? "point" : "range",
-                className: COLORS[row.COLOR_TOKEN][0], row };
+                className: COLORS[row.COLOR_TOKEN][0], row });
         });
-        return { items, groups: [...groups.values()].sort((a, b) => a.order.localeCompare(b.order, "de")) };
+        return { items, groups: [...groups.values()].sort((a, b) => a.order.localeCompare(b.order, "de")),
+            teams: [...teams].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, "de")),
+            warnings, resourceRows: rows.filter(row => row && ["team", "resource"].includes(row.ROW_KIND)) };
     }
 
     function element(tag, className, text) {
@@ -224,7 +258,10 @@ window.PlantafelCore = function createPlantafel(profile) {
         if (!anchor || order.items.some(item => !matches(item))) {
             throw new Error("Auftragsnachladung enthaelt Arbeitsgaenge ausserhalb des gewaehlten Auftrags.");
         }
-        return normalizeRows([...base.items.filter(item => !matches(item)), ...order.items].map(item => item.row));
+        return normalizeRows([
+            ...[...base.items.filter(item => !matches(item)), ...order.items].map(item => item.row),
+            ...(order.resourceRows || [])
+        ]);
     }
 
     async function fetchModel(params, signal) {
@@ -324,6 +361,13 @@ window.PlantafelCore = function createPlantafel(profile) {
         status.setAttribute("role", "status");
         status.setAttribute("aria-live", "polite");
         root.appendChild(status);
+        const warnings = element("details", "pb-note");
+        warnings.hidden = true;
+        const warningSummary = element("summary");
+        warningSummary.setAttribute("role", "status");
+        const warningList = element("ul");
+        warnings.append(warningSummary, warningList);
+        root.appendChild(warnings);
         if (!window.vis || !window.vis.Timeline || !window.vis.DataSet) {
             status.classList.add("pb-error");
             status.textContent = "Lokale Bibliothek Plantafel_Vis_850 fehlt. Quickview-Konfiguration pruefen.";
@@ -468,6 +512,7 @@ window.PlantafelCore = function createPlantafel(profile) {
         let hoveredItem = null;
         let hoverTimer = null;
         const resourceFilter = { defaultVisible: true, costs: new Map() };
+        const collapsedResourceParents = new Set();
         let resourceChecks = [];
 
         function updateResourceChecks() {
@@ -477,7 +522,8 @@ window.PlantafelCore = function createPlantafel(profile) {
                     child.input.checked = isResourceVisible(child.group, resourceFilter);
                     if (child.input.checked) checked++;
                 });
-                cost.input.checked = checked === cost.children.length;
+                cost.input.checked = cost.children.length ? checked === cost.children.length :
+                    isResourceVisible({ parentId: cost.id, id: "" }, resourceFilter);
                 cost.input.indeterminate = checked > 0 && checked < cost.children.length;
             });
             const count = model.groups.filter(group => isResourceVisible(group, resourceFilter)).length;
@@ -488,6 +534,8 @@ window.PlantafelCore = function createPlantafel(profile) {
             resourceTree.replaceChildren();
             resourceChecks = [];
             const costs = new Map();
+            const teamLabels = new Map((model.teams || []).map(team => [team.id, team.label]));
+            teamLabels.forEach((label, id) => costs.set(id, []));
             model.groups.forEach(group => {
                 if (!costs.has(group.parentId)) costs.set(group.parentId, []);
                 costs.get(group.parentId).push(group);
@@ -497,11 +545,29 @@ window.PlantafelCore = function createPlantafel(profile) {
                 const label = element("label", "pb-checkbox pb-cost-label");
                 const input = element("input");
                 input.type = "checkbox";
-                const parentLabel = children[0].parentLabel;
+                const parentLabel = teamLabels.get(kost) || children[0].parentLabel;
                 input.setAttribute("aria-label", labels.resourceParent + " " + parentLabel);
                 label.append(input, document.createTextNode(parentLabel));
                 const list = element("ul");
-                const checks = { input, children: [] };
+                const heading = element("div", "pb-resource-parent");
+                const toggle = element("button", "pb-resource-toggle");
+                toggle.type = "button";
+                toggle.disabled = children.length === 0;
+                function updateExpanded() {
+                    const expanded = !collapsedResourceParents.has(kost);
+                    list.hidden = !expanded;
+                    toggle.textContent = expanded ? "\u25be" : "\u25b8";
+                    toggle.setAttribute("aria-expanded", String(expanded));
+                    toggle.setAttribute("aria-label", labels.resourceParent + " " + parentLabel +
+                        (expanded ? " zuklappen" : " aufklappen"));
+                }
+                toggle.addEventListener("click", () => {
+                    if (collapsedResourceParents.has(kost)) collapsedResourceParents.delete(kost);
+                    else collapsedResourceParents.add(kost);
+                    updateExpanded();
+                });
+                updateExpanded();
+                const checks = { id: kost, input, children: [] };
                 input.addEventListener("change", () => {
                     setCostVisibility(resourceFilter, kost, input.checked);
                     updateViewStatus(render());
@@ -511,9 +577,10 @@ window.PlantafelCore = function createPlantafel(profile) {
                     const childLabel = element("label", "pb-checkbox");
                     const childInput = element("input");
                     childInput.type = "checkbox";
-                    childInput.setAttribute("aria-label", labels.resourceChild + " " + group.code +
+                    const displayName = group.displayName || group.code;
+                    childInput.setAttribute("aria-label", labels.resourceChild + " " + displayName +
                         " (" + labels.resourceParent + " " + parentLabel + ")");
-                    childLabel.append(childInput, document.createTextNode(group.code));
+                    childLabel.append(childInput, document.createTextNode(displayName));
                     child.appendChild(childLabel);
                     list.appendChild(child);
                     checks.children.push({ input: childInput, group });
@@ -523,7 +590,8 @@ window.PlantafelCore = function createPlantafel(profile) {
                     });
                 });
                 resourceChecks.push(checks);
-                item.append(label, list);
+                heading.append(toggle, label);
+                item.append(heading, list);
                 resourceTree.appendChild(item);
             });
             updateResourceChecks();
@@ -897,6 +965,12 @@ window.PlantafelCore = function createPlantafel(profile) {
 
         function render() {
             hideHover();
+            const skipped = model.warnings || [];
+            warnings.hidden = skipped.length === 0;
+            warningSummary.textContent = skipped.length ?
+                "Warnung: " + skipped.length + " Eintraege mit ungueltigen Zeiten uebersprungen. Details anzeigen." : "";
+            warningList.replaceChildren(...skipped.map(warning =>
+                element("li", "", warning.title + " [" + warning.id + "]: " + warning.message)));
             const filter = search.value.toLocaleLowerCase("de");
             const visible = model.groups.filter(group => isResourceVisible(group, resourceFilter) &&
                 group.label.toLocaleLowerCase("de").includes(filter));
@@ -915,7 +989,7 @@ window.PlantafelCore = function createPlantafel(profile) {
             const relatedIds = isolate ? new Set(getSequence(model.items, anchor.row, membershipMode).map(item => item.id)) : null;
             const visibleItems = model.items.filter(item => allowed.has(item.group) && (!relatedIds || relatedIds.has(item.id)));
             const usedGroups = new Set(visibleItems.map(item => item.group));
-            const visibleGroups = visible.filter(group => usedGroups.has(group.id));
+            const visibleGroups = profile.showEmptyResources ? visible : visible.filter(group => usedGroups.has(group.id));
             items.clear();
             groups.clear();
             groups.add(visibleGroups.map((group, index) => ({

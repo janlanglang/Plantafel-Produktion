@@ -1,5 +1,10 @@
 # Gemeinsame Codebasis: Produktion und Service
 
+Der Ressourcenfilter bietet pro KOST bzw. Team einen separaten Pfeil zum
+Auf-/Zuklappen. Das aendert keine Checkbox-Auswahl und keine Timeline-Filterung.
+Der Klappzustand bleibt innerhalb der geoeffneten Plantafel auch nach Nachladen
+erhalten; nach einem Seitenneustart sind die Gruppen wieder aufgeklappt.
+
 Stand: 13.11.2026. Beide Plantafeln sind ausschliesslich lesend.
 
 ## Gemeinsamer Core
@@ -90,3 +95,19 @@ Details zum Serviceentwurf und zur Inbetriebnahme:
 [Servicekonzept](../Plantafel%20Service%20RSC/Plantafel_Konzept.md).
 
 Pruefung Produktion: `npm test` und `npm run check`.
+
+## Aktiver KOST-/MAGR-Katalog im Produktionsfilter
+
+`Plantafel_001` liefert neben Ereignissen auch `ROW_KIND=resource/team`:
+alle KOST und zugehoerigen MAGR mit `AKTIV=1` im freigegebenen Mandanten.
+Der Katalog ist unabhaengig von Zeitraum, Auftragsfilter, Belegung und `PLANEN`.
+Aktuell sind das 15 KOST / 67 MAGR. Auch Kostenstellen ohne aktive MAGR werden
+als Elternknoten unterstuetzt.
+
+Das Produktionsprofil aktiviert dafuer `includeResourceCatalog`, nicht
+`showEmptyResources`: der Filterbaum ist vollstaendig, die Zeitleiste behaelt
+ihre belegten Zeilen. Die Ereignisauswahl (insbesondere Status 2/3 und PLANEN)
+bleibt unveraendert. Auftragsnachladung erneuert den Katalog ebenfalls.
+Stammdatenzeilen zaehlen nicht gegen das Limit von 10.000 Ereignissen.
+Der gemeinsame Core unterstuetzt weiterhin die leeren Ressourcenzeilen des
+Serviceprofils; Produktions- und Serviceverhalten bleiben getrennt konfiguriert.

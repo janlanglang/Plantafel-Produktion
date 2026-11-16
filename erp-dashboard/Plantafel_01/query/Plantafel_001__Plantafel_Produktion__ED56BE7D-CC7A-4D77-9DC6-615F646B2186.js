@@ -22,6 +22,7 @@ window.ProductionBoard = (function () {
         id: "production-board",
         query: "Plantafel_001",
         title: "Produktionsplantafel",
+        includeResourceCatalog: true,
         parameters: [
             { name: "von", label: "Von", type: "date" },
             { name: "bis", label: "Bis (inklusiv)", type: "date" },
@@ -91,7 +92,7 @@ window.ProductionBoard = (function () {
             selectForSequence: "Fuer schematische Folgepfeile einen Arbeitsgang auswaehlen.",
             resourceTitle: "KOST / MAGR", resourceParent: "KOST", resourceChild: "MAGR",
             resourceTree: "Kostenstellen und Maschinengruppen", resourceSearch: "Kostenstelle / Maschine",
-            resourceNote: "Geladene Maschinengruppen. Auswahl bleibt beim Nachladen erhalten.",
+            resourceNote: "Alle aktiven KOST / MAGR, auch ohne Belegung oder Planungsfreigabe. Auswahl bleibt beim Nachladen erhalten.",
             note: "Nur belegte Maschinen. DB-Ortszeit. Farben: Prototyp-Palette, keine Kapazitaetsberechnung. " +
                 "Verschieben/Zoom ueber den geladenen Bereich hinaus laedt automatisch nach. " +
                 "Maximal 93 Abfragetage; Balken sind nicht editierbar."

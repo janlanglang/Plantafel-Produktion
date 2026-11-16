@@ -209,6 +209,27 @@
     background: #dceaf4;
 }
 
+.production-board .pb-resource-parent {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.production-board .pb-resource-toggle {
+    padding: 0;
+    width: 26px;
+    min-height: 28px;
+    flex-shrink: 0;
+}
+
+.production-board .pb-resource-toggle:disabled {
+    visibility: hidden;
+}
+
+.production-board .pb-resource-tree ul[hidden] {
+    display: none;
+}
+
 .production-board :focus-visible {
     outline: 3px solid #146db1;
     outline-offset: 2px;

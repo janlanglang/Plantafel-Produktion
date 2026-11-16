@@ -110,7 +110,10 @@
     Eltern koennen komplett ein-/ausgeblendet, Kinder einzeln ausgewaehlt
     werden. Teilselektion wird am Elternknoten angezeigt. Die Regeln gelten
     auch nach Bereichsnachladung und fuer neu auftauchende Maschinen einer
-    ausgeblendeten KOST. Baum und Zaehler enthalten nur geladene Ressourcen.
+    ausgeblendeten KOST. Der Baum enthaelt unabhaengig vom Zeitraum alle
+    aktiven KOST/MAGR (AKTIV = 1), auch ohne PLANEN oder Belegung.
+    Der Provider ergaenzt dafuer ROW_KIND resource/team aus den Stammdaten.
+    Die Zeitleiste zeigt weiterhin nur belegte Ressourcen.
     Der Filter ist rein lokal; keine Stammdaten-/Planungsdaten-Aenderung.
     Die Ressourcensuche befindet sich im KOST/MAGR-Menue. Separate
     Vor-/Zurueck-Zeitraumschaltflaechen und das Arbeitsgangdropdown entfallen;

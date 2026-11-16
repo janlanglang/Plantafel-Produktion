@@ -91,6 +91,47 @@ test("accepts nullable tooltip fields omitted by the live Query.aspx serializer"
     assert.equal(board.normalizeRows([operation]).items.length, 1);
 });
 
+function resourceRow(overrides = {}) {
+    return {
+        ROW_KIND: "resource", RESOURCE_ID: "machine:empty", RESOURCE_LABEL: "200 / 02",
+        KOST: "200", MAGR: "02", RESOURCE_CODE: "02", ...overrides
+    };
+}
+
+test("keeps the active resource catalogue and empty cost centers without any operations", () => {
+    const model = board.normalizeRows([
+        { ROW_KIND: "empty" }, resourceRow(), { ROW_KIND: "team", TEAM_CODE: "300" }
+    ]);
+    assert.equal(model.items.length, 0);
+    assert.equal(model.groups.length, 1);
+    assert.equal(model.groups[0].parentId, "200");
+    assert.equal(model.teams.map(team => team.id).join(","), "200,300");
+    const filter = { defaultVisible: true, costs: new Map() };
+    board.setCostVisibility(filter, "200", false);
+    assert.equal(board.isResourceVisible(model.groups[0], filter), false);
+});
+
+test("counts only operations toward the event limit when the complete resource catalogue is included", () => {
+    const model = board.normalizeRows([
+        ...Array.from({ length: 10000 }, (_, index) => row({ EVENT_ID: "op:" + index })),
+        resourceRow()
+    ]);
+    assert.equal(model.items.length, 10000);
+    assert.equal(model.groups.length, 2);
+});
+
+test("refreshes the complete resource catalogue when loading an order outside the time range", () => {
+    const base = board.normalizeRows([row(), resourceRow()]);
+    const catalogue = resourceRow({ RESOURCE_ID: "machine:new", KOST: "300", RESOURCE_LABEL: "300 / 02" });
+    const order = board.normalizeRows([row(), catalogue, { ROW_KIND: "team", TEAM_CODE: "400" }]);
+    const merged = board.mergeOrderModel(base, order, row(), "work-order");
+    assert.equal(merged.items.length, 1);
+    assert.equal(merged.groups.length, 2);
+    assert.equal(merged.groups.some(group => group.id === "machine:new"), true);
+    assert.equal(merged.groups.some(group => group.id === "machine:empty"), false);
+    assert.equal(merged.teams.some(team => team.id === "400"), true);
+});
+
 test("accepts exactly 10,000 operations without merging their identities", () => {
     const rows = Array.from({ length: 10000 }, (_, index) => row({ EVENT_ID: "op:" + index }));
     const model = board.normalizeRows(rows);
